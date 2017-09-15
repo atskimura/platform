@@ -1,0 +1,17 @@
+{
+  "id": "L0000000000000000000000001",
+  "issued_at": 1483228800000,
+  "starts_at": 1483228800000,
+  "expires_at": 1798761600000,
+  "customer": {
+    "id":          "C0001",
+    "name":        "Sample Admin",
+    "email":       "admin@example.com",
+    "company":     "Sample Inc.",
+    "phone_number": "00-0000-0000"
+  },
+  "features": {
+    "users": 100000,
+    "ldap": true
+  }
+}

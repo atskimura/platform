@@ -11,20 +11,15 @@ BUILD_HASH = $(shell git rev-parse HEAD)
 ifeq ($(BUILD_NUMBER),)
 	BUILD_NUMBER := dev
 endif
-BUILD_ENTERPRISE_DIR ?= ../enterprise
+
 BUILD_ENTERPRISE ?= true
 BUILD_ENTERPRISE_READY = false
 BUILD_TYPE_NAME = team
 BUILD_HASH_ENTERPRISE = none
-ifneq ($(wildcard $(BUILD_ENTERPRISE_DIR)/.),)
-	ifeq ($(BUILD_ENTERPRISE),true)
-		BUILD_ENTERPRISE_READY = true
-		BUILD_TYPE_NAME = enterprise
-		BUILD_HASH_ENTERPRISE = $(shell cd $(BUILD_ENTERPRISE_DIR) && git rev-parse HEAD)
-	else
-		BUILD_ENTERPRISE_READY = false
-		BUILD_TYPE_NAME = team
-	endif
+ifeq ($(BUILD_ENTERPRISE),true)
+	BUILD_ENTERPRISE_READY = true
+	BUILD_TYPE_NAME = enterprise
+	BUILD_HASH_ENTERPRISE = 9999999999999999999999999999999999999999
 else
 	BUILD_ENTERPRISE_READY = false
 	BUILD_TYPE_NAME = team
@@ -62,11 +57,7 @@ TE_PACKAGES_COMMA=$(shell echo $(TE_PACKAGES) | tr ' ' ',')
 EE_PACKAGES=$(shell go list ./enterprise/... | grep -v vendor | tail -n +2)
 EE_PACKAGES_COMMA=$(shell echo $(EE_PACKAGES) | tr ' ' ',')
 
-ifeq ($(BUILD_ENTERPRISE_READY),true)
-ALL_PACKAGES_COMMA=$(TE_PACKAGES_COMMA),$(EE_PACKAGES_COMMA)
-else
 ALL_PACKAGES_COMMA=$(TE_PACKAGES_COMMA)
-endif
 
 all: run
 
@@ -231,24 +222,6 @@ test-te-race: start-docker prepare-enterprise
 	done
 
 test-ee-race: start-docker prepare-enterprise
-	@echo Testing EE race conditions
-
-ifeq ($(BUILD_ENTERPRISE_READY),true)
-	@echo "Packages to test: "$(EE_PACKAGES)
-
-	for package in $(EE_PACKAGES); do \
-		echo "Testing "$$package; \
-		$(GO) test $(GOFLAGS) -race -run=$(TESTS) -c $$package; \
-		if [ -f $$(basename $$package).test ]; then \
-			echo "Testing "$$package; \
-			./$$(basename $$package).test -test.timeout=2000s || exit 1; \
-			rm -r $$(basename $$package).test; \
-		fi; \
-	done
-
-	rm -f config/*.crt
-	rm -f config/*.key
-endif
 
 test-server-race: test-te-race test-ee-race
 
@@ -287,28 +260,6 @@ test-postgres: start-docker prepare-enterprise
 	@rm config/config.json-e
 
 test-ee: start-docker prepare-enterprise do-cover-file
-	@echo Testing EE
-
-ifeq ($(BUILD_ENTERPRISE_READY),true)
-	@echo "Packages to test: "$(EE_PACKAGES)
-
-	for package in $(EE_PACKAGES); do \
-		echo "Testing "$$package; \
-		$(GO) test $(GOFLAGS) -run=$(TESTS) -covermode=count -coverpkg=$(ALL_PACKAGES_COMMA) -c $$package; \
-		if [ -f $$(basename $$package).test ]; then \
-			echo "Testing "$$package; \
-			./$$(basename $$package).test -test.v $(TESTFLAGSEE) -test.timeout=2000s -test.coverprofile=cprofile.out || exit 1; \
-			if [ -f cprofile.out ]; then \
-				tail -n +2 cprofile.out >> cover.out; \
-				rm cprofile.out; \
-			fi; \
-			rm -r $$(basename $$package).test; \
-		fi; \
-	done
-
-	rm -f config/*.crt
-	rm -f config/*.key
-endif
 
 test-server: test-te test-ee
 
@@ -338,13 +289,6 @@ cover:
 	touch $@
 
 prepare-enterprise:
-ifeq ($(BUILD_ENTERPRISE_READY),true)
-	@echo Enterprise build selected, preparing
-	mkdir -p imports/
-	cp $(BUILD_ENTERPRISE_DIR)/imports/imports.go imports/
-	rm -f enterprise
-	ln -s $(BUILD_ENTERPRISE_DIR) enterprise
-endif
 
 build-linux: .prebuild prepare-enterprise
 	@echo Build Linux amd64
@@ -396,11 +340,7 @@ package: build build-client
 	cp -RL $(BUILD_WEBAPP_DIR)/dist $(DIST_PATH)/webapp
 
 	@# Help files
-ifeq ($(BUILD_ENTERPRISE_READY),true)
-	cp $(BUILD_ENTERPRISE_DIR)/ENTERPRISE-EDITION-LICENSE.txt $(DIST_PATH)
-else
 	cp build/MIT-COMPILED-LICENSE.md $(DIST_PATH)
-endif
 	cp NOTICE.txt $(DIST_PATH)
 	cp README.md $(DIST_PATH)
 
@@ -551,31 +491,8 @@ govet:
 	$(GO) vet $(GOFLAGS) ./utils || exit 1
 	$(GO) vet $(GOFLAGS) ./web || exit 1
 
-ifeq ($(BUILD_ENTERPRISE_READY),true)
-	$(GO) vet $(GOFLAGS) ./enterprise/account_migration || exit 1
-	$(GO) vet $(GOFLAGS) ./enterprise/brand || exit 1
-	$(GO) vet $(GOFLAGS) ./enterprise/cluster || exit 1
-	$(GO) vet $(GOFLAGS) ./enterprise/compliance || exit 1
-	$(GO) vet $(GOFLAGS) ./enterprise/data_retention || exit 1
-	$(GO) vet $(GOFLAGS) ./enterprise/elasticsearch || exit 1
-	$(GO) vet $(GOFLAGS) ./enterprise/emoji || exit 1
-	$(GO) vet $(GOFLAGS) ./enterprise/imports || exit 1
-	$(GO) vet $(GOFLAGS) ./enterprise/ldap || exit 1
-	$(GO) vet $(GOFLAGS) ./enterprise/metrics || exit 1
-	$(GO) vet $(GOFLAGS) ./enterprise/mfa || exit 1
-	$(GO) vet $(GOFLAGS) ./enterprise/oauth/google || exit 1
-	$(GO) vet $(GOFLAGS) ./enterprise/oauth/office365 || exit 1
-	$(GO) vet $(GOFLAGS) ./enterprise/saml || exit 1
-endif
-
 todo:
 	@! ag --ignore Makefile --ignore-dir vendor --ignore-dir runtime --ignore-dir webapp/non_npm_dependencies/ TODO
 	@! ag --ignore Makefile --ignore-dir vendor --ignore-dir runtime --ignore-dir webapp/non_npm_dependencies/ XXX
 	@! ag --ignore Makefile --ignore-dir vendor --ignore-dir runtime --ignore-dir webapp/non_npm_dependencies/ FIXME
 	@! ag --ignore Makefile --ignore-dir vendor --ignore-dir runtime --ignore-dir webapp/non_npm_dependencies/ "FIX ME"
-ifeq ($(BUILD_ENTERPRISE_READY),true)
-	@! ag --ignore Makefile --ignore-dir vendor --ignore-dir runtime --ignore-dir webapp/non_npm_dependencies/ TODO enterprise/
-	@! ag --ignore Makefile --ignore-dir vendor --ignore-dir runtime --ignore-dir webapp/non_npm_dependencies/ XXX enterprise/
-	@! ag --ignore Makefile --ignore-dir vendor --ignore-dir runtime --ignore-dir webapp/non_npm_dependencies/ FIXME enterprise/
-	@! ag --ignore Makefile --ignore-dir vendor --ignore-dir runtime --ignore-dir webapp/non_npm_dependencies/ "FIX ME" enterprise/
-endif
