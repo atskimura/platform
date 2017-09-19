@@ -1,7 +1,7 @@
 {
     "ServiceSettings": {
         "SiteURL": "http://localhost:8065",
-        "LicenseFileLocation": "",
+        "LicenseFileLocation": "./config/license.json",
         "ListenAddress": ":8065",
         "ConnectionSecurity": "",
         "TLSCertFile": "",

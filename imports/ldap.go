@@ -1,6 +1,7 @@
 package imports
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/http"
@@ -81,9 +82,27 @@ func (li *LdapInterfaceImpl) GetAllLdapUsers() ([]*model.User, *model.AppError) 
 }
 
 func LdapConnect(username string, password string) (*ldap.Conn, error) {
-	l, err := ldap.Dial("tcp", fmt.Sprintf("%s:%d", *utils.Cfg.LdapSettings.LdapServer, *utils.Cfg.LdapSettings.LdapPort))
-	if err != nil {
-		return l, err
+	var l *ldap.Conn
+	var err error
+	if *utils.Cfg.LdapSettings.ConnectionSecurity == "TLS" {
+		l, err = ldap.DialTLS("tcp", fmt.Sprintf("%s:%d", *utils.Cfg.LdapSettings.LdapServer, *utils.Cfg.LdapSettings.LdapPort), &tls.Config{InsecureSkipVerify: true})
+		if err != nil {
+			return l, err
+		}
+	} else if *utils.Cfg.LdapSettings.ConnectionSecurity == "STARTTLS" {
+		l, err = ldap.Dial("tcp", fmt.Sprintf("%s:%d", *utils.Cfg.LdapSettings.LdapServer, *utils.Cfg.LdapSettings.LdapPort))
+		if err != nil {
+			return l, err
+		}
+		err = l.StartTLS(&tls.Config{InsecureSkipVerify: true})
+		if err != nil {
+			return l, err
+		}
+	} else {
+		l, err = ldap.Dial("tcp", fmt.Sprintf("%s:%d", *utils.Cfg.LdapSettings.LdapServer, *utils.Cfg.LdapSettings.LdapPort))
+		if err != nil {
+			return l, err
+		}
 	}
 	l4g.Info("LDAP connect: OK")
 
